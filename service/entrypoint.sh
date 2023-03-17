@@ -8,4 +8,4 @@ export HOST="$HOST"
 export PORT="$PORT"
 
 # 启动 Python 脚本
-python main.py --openai_api_key="$OPENAI_API_KEY" --api_model="$API_MODEL" --socks_proxy="$SOCKS_PROXY" --host="$HOST" --port="$PORT"
+python main.py --openai_api_key="secret_L8SXYBjBQDH3Z7elpalEiU6mOWrfaEE1qlSAesBMN7D" --api_model="$API_MODEL" --socks_proxy="$SOCKS_PROXY" --host="$HOST" --port="$PORT"
