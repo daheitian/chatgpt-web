@@ -3,8 +3,8 @@ version: '3'
 services:
   app:
     # 根据自己的系统选择x86_64还是aarch64
-    image: wenjing95/chatgpt-web-backend:x86_64
-    # image: wenjing95/chatgpt-web-backend:aarch64
+    image: daheitian/chatgpt-web-backend:x86_64
+    # image: daheitian/chatgpt-web-backend:aarch64
     ports:
       - 3002:3002
     environment:
