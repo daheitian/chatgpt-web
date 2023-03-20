@@ -14,8 +14,8 @@ export default {
   },
   chat: {
     newChat: '新的对话',
-    placeholder: '想问点什么...（Shift + Enter = 换行）',
-    placeholderMobile: '想问点什么...',
+    placeholder: '有问题尽管问我...(Shift + Enter = 换行)',
+    placeholderMobile: '有问题尽管问我...',
     copy: '复制',
     copied: '复制成功',
     copyCode: '复制代码',
@@ -66,6 +66,9 @@ export default {
     PromptIsEmpty: '你好！今天我能为您提供什么帮助？',
     NotComplyPolicy: '对不起，您发送的内容不符合我们的使用政策。请注意，我们的平台禁止发布涉及骚扰、歧视、暴力、色情等违反法律法规和社会道德的内容。如有疑问，请联系开发者获取更多帮助。谢谢。',
     SomethingWrong: '出错了，请稍后再试',
+    SomethingWrongInOpenaiGptApi: '访问OpenAI GPT API出错，请稍后再试',
+    SomethingWrongInOpenaiModerationApi: '访问OpenAI Moderation API出错，请稍后再试',
+    SomethingWrongInOpenaiWhisperApi: '访问OpenAI Whisper API出错，请稍后再试',
   },
 
 }

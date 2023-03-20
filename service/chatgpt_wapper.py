@@ -7,7 +7,7 @@ import json
 import asyncio
 from loguru import logger
 from backoff import on_exception, expo
-from tools.openai_token_control import num_tokens_from_string, discard_overlimit_messages
+from tools.openai_token_control import discard_overlimit_messages
 import concurrent.futures
 from errors import Errors
 
@@ -37,17 +37,22 @@ async def process(prompt, options, memory_count, top_p, message_store, model="gp
         input=prompt,
     )
     moderation_res = await _moderation_create_async(moderation_params)
-    if moderation_res.results[0].flagged:
-        warning_text = "[This content does not comply with OpenAI's usage policy. : {} ]".format(
-            prompt
-        )
-        logger.warning(warning_text)
-        yield Errors.NOT_COMPLY_POLICY.value
+    if moderation_res is None:
+        yield Errors.SOMETHING_WRONG_IN_OPENAI_MODERATION_API.value
         return
 
     try:
+        if moderation_res.results[0].flagged:
+            warning_text = "[This content does not comply with OpenAI's usage policy. : {} ]".format(
+                prompt
+            )
+            logger.warning(warning_text)
+            yield Errors.NOT_COMPLY_POLICY.value
+            return
+
         chat = {"role": "user", "content": prompt}
 
+        # 组合历史消息
         if options:
             parent_message_id = options.get("parentMessageId")
             messages = message_store.get_from_key(parent_message_id)
@@ -59,10 +64,14 @@ async def process(prompt, options, memory_count, top_p, message_store, model="gp
             parent_message_id = None
             messages = [base, chat]
 
-        # 消息不能超过4096个token
+        # 记忆
+        messages = messages[-memory_count:]
+
+        # 消息不能超过token限制
         # todo 压缩过去消息
         messages = discard_overlimit_messages(messages)
 
+        # send to OpenAI
         params = dict(
             stream=True, messages=messages, model=model, top_p=top_p
         )
@@ -70,12 +79,19 @@ async def process(prompt, options, memory_count, top_p, message_store, model="gp
             params["request_id"] = parent_message_id
 
         res = await _chat_completions_create_async(params)
+        if res is None:
+            yield Errors.SOMETHING_WRONG_IN_OPENAI_GPT_API.value
+            return
 
-        result_messages = []
+        # 处理结果
         text = ""
         role = ""
+        prev_message_dict = {}
         for openai_object in res:
             openai_object_dict = openai_object.to_dict_recursive()
+
+            prev_message_dict = openai_object_dict
+
             if not role:
                 role = openai_object_dict["choices"][0]["delta"].get("role", "")
 
@@ -87,18 +103,17 @@ async def process(prompt, options, memory_count, top_p, message_store, model="gp
                 id=openai_object_dict["id"],
                 parentMessageId=parent_message_id,
                 text=text,
-                delta=text_delta,
-                detail=dict(
-                    id=openai_object_dict["id"],
-                    object=openai_object_dict["object"],
-                    created=openai_object_dict["created"],
-                    model=openai_object_dict["model"],
-                    choices=openai_object_dict["choices"]
-                )
+                # delta=text_delta,
+                # detail=dict(
+                #     id=openai_object_dict["id"],
+                #     object=openai_object_dict["object"],
+                #     # created=openai_object_dict["created"],
+                #     # model=openai_object_dict["model"],
+                #     # choices=openai_object_dict["choices"]
+                # )
             ))
-            result_messages.append(message)
+            yield "data: " + message
 
-            yield "\n".join(result_messages)
     except:
         err = traceback.format_exc()
         logger.error(err)
@@ -110,35 +125,46 @@ async def process(prompt, options, memory_count, top_p, message_store, model="gp
         chat = {"role": role, "content": text}
         messages.append(chat)
 
-        openai_object_dict = json.loads(result_messages[-1])
-        parent_message_id = openai_object_dict["id"]
+        parent_message_id = prev_message_dict["id"]
         message_store.set(parent_message_id, messages)
     except:
         err = traceback.format_exc()
         logger.error(err)
 
 
-@on_exception(expo, openai.error.RateLimitError)
+@on_exception(expo, openai.error.RateLimitError, max_tries=5)
 def _moderation_create(params):
     return openai.Moderation.create(**params)
 
 
 async def _moderation_create_async(params):
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        result = await asyncio.get_event_loop().run_in_executor(
-            executor, _moderation_create, params
-        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                executor, _moderation_create, params
+            )
+        except:
+            err = traceback.format_exc()
+            logger.error(err)
+            # 这里处理 openai.error.RateLimitError 之外的错误
+            return None
     return result
 
 
-@on_exception(expo, openai.error.RateLimitError)
+@on_exception(expo, openai.error.RateLimitError, max_tries=5)
 def _chat_completions_create(params):
     return openai.ChatCompletion.create(**params)
 
 
 async def _chat_completions_create_async(params):
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        result = await asyncio.get_event_loop().run_in_executor(
-            executor, _chat_completions_create, params
-        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                executor, _chat_completions_create, params
+            )
+        except:
+            err = traceback.format_exc()
+            logger.error(err)
+            # 这里处理 openai.error.RateLimitError 之外的错误
+            return None
     return result

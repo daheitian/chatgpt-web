@@ -152,10 +152,33 @@ async function recStop() {
         options,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
-          const { responseText } = xhr
-
+          let { responseText } = xhr
+          responseText = removeDataPrefix(responseText)
           prompt.value = responseText
           isAudioPrompt.value = true
+
+          // 如果解析音频消息出错，就显示something wrong
+          const isError = isServerError(responseText)
+          if (isError) {
+            updateChat(
+              +uuid,
+              dataSources.value.length - 1,
+              {
+                dateTime: new Date().toLocaleString(),
+                text: t(`server.${getServerErrorType(responseText)}`),
+                inversion: false,
+                error: true,
+                loading: false,
+                requestOptions: { prompt: '', ...options },
+              },
+            )
+            scrollToBottom()
+
+            loading.value = false
+            sendingRecord.value = false
+
+            return
+          }
 
           onConversation()
         },
@@ -215,6 +238,13 @@ async function recStop() {
     rec.close()
     rec = null
   })
+}
+
+function removeDataPrefix(str: string) {
+  if (str && str.startsWith('data: '))
+    return str.slice(6)
+
+  return str
 }
 
 async function onConversation() {
@@ -294,7 +324,9 @@ async function onConversation() {
       signal: controller.signal,
       onDownloadProgress: ({ event }) => {
         const xhr = event.target
-        const { responseText } = xhr
+        let { responseText } = xhr
+        responseText = removeDataPrefix(responseText)
+
         const isError = isServerError(responseText)
         if (isError) {
           updateChat(
@@ -313,11 +345,13 @@ async function onConversation() {
           return
         }
 
-        // Always process the final line
-        const lastIndex = responseText.lastIndexOf('\n')
+        // SSE response format "data: xxx"
+        const lastIndex = responseText.lastIndexOf('data: ')
         let chunk = responseText
         if (lastIndex !== -1)
           chunk = responseText.substring(lastIndex)
+
+        chunk = removeDataPrefix(chunk)
         try {
           const data = JSON.parse(chunk)
           updateChat(
@@ -432,7 +466,8 @@ async function onRegenerate(index: number) {
       signal: controller.signal,
       onDownloadProgress: ({ event }) => {
         const xhr = event.target
-        const { responseText } = xhr
+        let { responseText } = xhr
+        responseText = removeDataPrefix(responseText)
 
         const isError = isServerError(responseText)
         if (isError) {
@@ -448,13 +483,17 @@ async function onRegenerate(index: number) {
               requestOptions: { prompt: message, ...options },
             },
           )
+          scrollToBottom()
+          return
         }
 
-        // Always process the final line
-        const lastIndex = responseText.lastIndexOf('\n')
+        // SSE response format "data: xxx"
+        const lastIndex = responseText.lastIndexOf('data: ')
         let chunk = responseText
         if (lastIndex !== -1)
           chunk = responseText.substring(lastIndex)
+
+        chunk = removeDataPrefix(chunk)
         try {
           const data = JSON.parse(chunk)
           updateChat(
@@ -536,20 +575,20 @@ function handleDelete(index: number) {
   })
 }
 
-function handleClear() {
-  if (loading.value)
-    return
-
-  dialog.warning({
-    title: t('chat.clearChat'),
-    content: t('chat.clearChatConfirm'),
-    positiveText: t('common.yes'),
-    negativeText: t('common.no'),
-    onPositiveClick: () => {
-      chatStore.clearChatByUuid(+uuid, t('chat.newChat'))
-    },
-  })
-}
+// function handleClear() {
+//   if (loading.value)
+//     return
+//
+//   dialog.warning({
+//     title: t('chat.clearChat'),
+//     content: t('chat.clearChatConfirm'),
+//     positiveText: t('common.yes'),
+//     negativeText: t('common.no'),
+//     onPositiveClick: () => {
+//       chatStore.clearChatByUuid(+uuid, t('chat.newChat'))
+//     },
+//   })
+// }
 
 function handleEnter(event: KeyboardEvent) {
   if (!isMobile.value) {
