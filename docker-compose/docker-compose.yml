@@ -12,7 +12,7 @@ services:
       # 可选，默认值为 gpt-3.5-turbo
       API_MODEL: gpt-3.5-turbo
       # Socks代理，可选，格式为 http://127.0.0.1:10808
-      SOCKS_PROXY: ''
+      SOCKS_PROXY: 'http://127.0.0.1:10808'
       # HOST，可选，默认值为 0.0.0.0
       HOST: 0.0.0.0
       # PORT，可选，默认值为 3002
