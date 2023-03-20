@@ -19,8 +19,6 @@ services:
       PORT: 3002
   nginx:
     image: nginx:alpine
-    ports:
-      - '8080:80'
     expose:
       - '80'
     volumes:
